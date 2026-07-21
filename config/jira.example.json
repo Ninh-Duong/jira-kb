@@ -1,0 +1,11 @@
+{
+  "repoId": "wecrm-eager",
+  "displayName": "WeCRM-eager",
+  "jiraBaseUrl": "https://your-domain.atlassian.net",
+  "projectKey": "WECRM",
+  "jql": "project = WECRM ORDER BY updated DESC",
+  "syncWindowHours": 48,
+  "sprintFieldIds": ["customfield_10020"],
+  "epicFieldIds": ["customfield_10014"],
+  "workflowMode": "simple"
+}

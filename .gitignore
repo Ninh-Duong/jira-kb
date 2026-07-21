@@ -1,0 +1,104 @@
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example
+*.local
+*.local.*
+*.secret
+*.secret.*
+*.secrets
+*.secrets.*
+*.credentials
+*.credentials.*
+
+# Jira credentials and private config
+/config/*
+!/config/
+!/config/jira.example.json
+!/config/*.example.json
+!/config/*.example.yaml
+!/config/*.example.yml
+
+# Private auth material
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+*.token
+*.tokens
+.netrc
+.npmrc
+
+# Generated Jira exports and snapshots
+/data/**
+!/data/
+!/data/raw/
+!/data/raw/.gitkeep
+!/data/normalized/
+!/data/normalized/.gitkeep
+!/data/snapshots/
+!/data/snapshots/.gitkeep
+
+# Distilled Jira knowledge base output.
+# These files may contain private ticket/customer/product details.
+/kb/**
+!/kb/
+!/kb/tickets/
+!/kb/tickets/.gitkeep
+!/kb/epics/
+!/kb/epics/.gitkeep
+!/kb/sprints/
+!/kb/sprints/.gitkeep
+!/kb/components/
+!/kb/components/.gitkeep
+!/kb/decisions/
+!/kb/decisions/.gitkeep
+!/kb/workflows/
+!/kb/workflows/.gitkeep
+!/kb/glossary/
+!/kb/glossary/.gitkeep
+
+# Local search indexes and embeddings
+/indexes/**
+!/indexes/
+!/indexes/sqlite/
+!/indexes/sqlite/.gitkeep
+!/indexes/embeddings/
+!/indexes/embeddings/.gitkeep
+
+# Runtime logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# Build output and local app caches
+/dist/
+/web/dist/
+/coverage/
+/.vite/
+/node_modules/
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Per-repo workspaces
+/workspaces/*
+!/workspaces/.gitkeep
+
+# SQLite artifacts
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-wal
+*.sqlite-shm
+*.db-wal
+*.db-shm
