@@ -96,6 +96,18 @@ That folder is ignored by Git.
 
 ## Runtime Data
 
+Runtime API calls write local JSONL logs to:
+
+```txt
+logs/system.jsonl
+```
+
+When a request includes a repo id, the same entry is also copied to:
+
+```txt
+workspaces/<repo-id>/logs/system.jsonl
+```
+
 The tool stores local-only data in:
 
 ```txt

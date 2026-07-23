@@ -15,6 +15,7 @@ Local-first Jira knowledge tool for DEV, BA, and QC.
 
 - `src/`: core models, Jira connector, normalizer, query, workflow builder, CLI
 - `web/`: local UI shell
+- `logs/`: local runtime JSONL logs for failed and completed API runs
 - `workspaces/`: per-repo data, logs, KB, indexes, and workflow snapshots
 - `config/`: sample config only
 - `docs/`: architecture and UI notes
@@ -24,7 +25,7 @@ Local-first Jira knowledge tool for DEV, BA, and QC.
 ## Safety rules
 
 - never commit Jira API tokens, passwords, or vault contents
-- never commit run logs or repo scan outputs
+- never commit run log contents or repo scan outputs
 - keep each repo in its own workspace folder
 - treat `workspaces/` as runtime-only data
 

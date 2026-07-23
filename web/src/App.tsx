@@ -38,6 +38,8 @@ interface ConnectionTestResponse {
   message?: string;
   httpStatus?: number;
   durationMs?: number;
+  runId?: string;
+  logFile?: string;
 }
 
 interface JiraScanIssue {
@@ -53,6 +55,8 @@ interface JiraScanResponse {
   ok: boolean;
   status: 'succeeded' | 'failed';
   message: string;
+  runId: string;
+  logFile: string;
   repoId: string;
   projectKey: string;
   jql: string;
@@ -124,6 +128,10 @@ export default function App() {
       time: new Date().toLocaleTimeString()
     };
     setLogs((current) => [nextEntry, ...current]);
+  }
+
+  function formatLogRef(message: string, result: { runId?: string; logFile?: string }): string {
+    return result.runId ? `${message} | ${result.logFile ?? 'logs/system.jsonl'} | runId: ${result.runId}` : message;
   }
 
   function updateCredentialField(field: keyof typeof credentialForm, value: string) {
@@ -198,13 +206,14 @@ export default function App() {
 
       if (!response.ok || !result.ok) {
         const message = result.message ?? `Connection failed with HTTP ${response.status}`;
+        const note = formatLogRef(message, result);
         setConnectionState('failed');
-        setConnectionMessage(message);
+        setConnectionMessage(note);
         appendLog({
           step: 'credential',
           level: 'error',
           message: 'Connection failed',
-          note: message
+          note
         });
         return;
       }
@@ -286,14 +295,15 @@ export default function App() {
 
       if (!response.ok || !result.ok) {
         const message = result.message ?? `Jira scan failed with HTTP ${response.status}`;
+        const note = formatLogRef(message, result);
         setScanState('failed');
-        setScanMessage(message);
+        setScanMessage(note);
         setScanResult(null);
         appendLog({
           step: 'scan',
           level: 'error',
           message: 'Jira scan failed',
-          note: message
+          note
         });
         return;
       }

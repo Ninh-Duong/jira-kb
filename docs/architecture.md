@@ -10,6 +10,7 @@ Build a local-first Jira scanner that helps DEV, BA, and QC understand repo stru
 - credentials are stored outside source control
 - raw scan data, normalized notes, KB outputs, indexes, and logs stay local
 - daily runs should be incremental, not full rescans
+- root runtime logs are written under `logs/system.jsonl` for quick debugging
 
 ## Workspace shape
 

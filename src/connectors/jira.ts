@@ -23,6 +23,10 @@ export function buildJiraAuthHeader(email: string, apiToken: string): string {
   return `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
 }
 
+export function getJiraSearchPath(mode: JiraCredentialDraft['mode']): string {
+  return mode === 'server' ? '/rest/api/2/search' : '/rest/api/3/search/jql';
+}
+
 export function buildJiraSearchUrl(
   config: Pick<JiraCredentialDraft, 'jiraBaseUrl' | 'mode'>,
   jql: string,
@@ -31,12 +35,15 @@ export function buildJiraSearchUrl(
   maxResults = 50
 ): string {
   const baseUrl = normalizeBaseUrl(config.jiraBaseUrl);
-  const apiVersion = getJiraApiVersion(config.mode);
-  const url = new URL(`${baseUrl}/rest/api/${apiVersion}/search`);
+  const url = new URL(`${baseUrl}${getJiraSearchPath(config.mode)}`);
   url.searchParams.set('jql', jql);
   url.searchParams.set('fields', fields.join(','));
-  url.searchParams.set('startAt', String(startAt));
   url.searchParams.set('maxResults', String(maxResults));
+
+  if (config.mode === 'server') {
+    url.searchParams.set('startAt', String(startAt));
+  }
+
   return url.toString();
 }
 

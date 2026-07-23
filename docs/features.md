@@ -9,6 +9,7 @@ Current implemented pieces:
 - create a per-repo workspace with manifest, state, raw, normalized, KB, indexes, workflows, logs, and cache folders
 - test Jira credentials through the local Vite API
 - scan recent Jira issues for a project through the local Vite API
+- write runtime API logs to `logs/system.jsonl`
 - extract Jira issue snapshots into lightweight records
 - normalize issue snapshots into markdown, search text, and simple impact notes
 - search normalized tickets with a lightweight scorer
@@ -17,7 +18,7 @@ Current implemented pieces:
 
 ## Jira Scan
 
-The `Scan Jira` action is a read-only scan. It calls `/api/jira/scan`, fetches up to 25 recently updated Jira issues for the configured project, and returns:
+The `Scan Jira` action is a read-only scan. It calls `/api/jira/scan`, fetches up to 25 recently updated Jira issues for the configured project through Jira Cloud enhanced search, and returns:
 
 - scanned issue count
 - Jira total from the search response
@@ -36,5 +37,5 @@ The future full sync should extend the scan flow to:
 - write raw Jira payloads to the repo workspace
 - normalize changed issues into local records
 - rebuild affected KB and workflow slices
-- write a run log file
+- persist full sync run history
 - expose saved scan/sync history in the UI

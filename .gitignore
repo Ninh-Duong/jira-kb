@@ -72,7 +72,9 @@
 
 # Runtime logs and temporary files
 *.log
-logs/
+logs/*
+!logs/
+!logs/.gitkeep
 tmp/
 temp/
 .cache/

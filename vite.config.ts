@@ -7,16 +7,25 @@ import tailwindcss from '@tailwindcss/vite';
 import {
   buildJiraAuthHeader,
   buildJiraSearchUrl,
+  getJiraSearchPath,
   normalizeBaseUrl,
   testJiraConnection
 } from './src/connectors/jira';
 import { extractJiraIssueSnapshot } from './src/extractors/jira';
 import type { JiraCredentialDraft } from './src/models/repo';
 import type { JiraIssuePayload } from './src/models/ticket';
+import {
+  appendRuntimeLog,
+  createRunId,
+  RUNTIME_LOG_DIR,
+  RUNTIME_LOG_FILE,
+  type RuntimeLogEntry
+} from './src/utils/runtimeLog';
 
 const JIRA_TEST_CONNECTION_PATH = '/api/jira/test-connection';
 const JIRA_SCAN_PATH = '/api/jira/scan';
 const SCAN_MAX_RESULTS = 25;
+const LOG_FILE_HINT = `${RUNTIME_LOG_DIR}/${RUNTIME_LOG_FILE}`;
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   res.statusCode = statusCode;
@@ -40,6 +49,15 @@ function readBody(req: IncomingMessage): Promise<string> {
     req.on('end', () => resolve(body));
     req.on('error', reject);
   });
+}
+
+async function recordRuntimeLog(entry: RuntimeLogEntry): Promise<void> {
+  try {
+    await appendRuntimeLog(entry);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[jira-kb] Failed to write runtime log: ${message}`);
+  }
 }
 
 function readString(value: unknown): string {
@@ -78,6 +96,8 @@ interface JiraScanResult {
   ok: boolean;
   status: 'succeeded' | 'failed';
   message: string;
+  runId: string;
+  logFile: string;
   repoId: string;
   projectKey: string;
   jql: string;
@@ -165,6 +185,7 @@ function validateScanConfig(config: JiraCredentialDraft): string | null {
 async function scanJiraProject(config: JiraCredentialDraft): Promise<JiraScanResult> {
   const startedAt = Date.now();
   const scannedAt = new Date().toISOString();
+  const runId = createRunId('jira-scan');
   const projectKey = config.projectKey.toUpperCase();
   const jql = buildProjectJql(projectKey);
   const validationError = validateScanConfig(config);
@@ -174,6 +195,8 @@ async function scanJiraProject(config: JiraCredentialDraft): Promise<JiraScanRes
       ok: false,
       status: 'failed',
       message: validationError,
+      runId,
+      logFile: LOG_FILE_HINT,
       repoId: config.repoId,
       projectKey,
       jql,
@@ -209,6 +232,8 @@ async function scanJiraProject(config: JiraCredentialDraft): Promise<JiraScanRes
         ok: false,
         status: 'failed',
         message: readJiraError(payload),
+        runId,
+        logFile: LOG_FILE_HINT,
         repoId: config.repoId,
         projectKey,
         jql,
@@ -246,6 +271,8 @@ async function scanJiraProject(config: JiraCredentialDraft): Promise<JiraScanRes
       ok: true,
       status: 'succeeded',
       message: `Scanned ${scanIssues.length} Jira issues for ${projectKey}`,
+      runId,
+      logFile: LOG_FILE_HINT,
       repoId: config.repoId,
       projectKey,
       jql,
@@ -263,6 +290,8 @@ async function scanJiraProject(config: JiraCredentialDraft): Promise<JiraScanRes
       ok: false,
       status: 'failed',
       message: error instanceof Error ? error.message : 'Unknown Jira scan error',
+      runId,
+      logFile: LOG_FILE_HINT,
       repoId: config.repoId,
       projectKey,
       jql,
@@ -286,15 +315,46 @@ async function handleJiraTestConnection(req: IncomingMessage, res: ServerRespons
     return;
   }
 
+  const runId = createRunId('jira-test');
+
   try {
     const config = parseCredentialDraft(await readBody(req));
     const result = await testJiraConnection(config);
-    sendJson(res, 200, result);
+    await recordRuntimeLog({
+      runId,
+      operation: 'jira.testConnection',
+      status: result.ok ? 'succeeded' : 'failed',
+      level: result.ok ? 'info' : 'error',
+      repoId: config.repoId,
+      projectKey: config.projectKey,
+      message: result.message,
+      durationMs: result.durationMs,
+      httpStatus: result.httpStatus,
+      metadata: {
+        endpoint: `/rest/api/${config.mode === 'server' ? 2 : 3}/myself`,
+        mode: config.mode
+      }
+    });
+    sendJson(res, 200, {
+      ...result,
+      runId,
+      logFile: LOG_FILE_HINT
+    });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid Jira connection request';
+    await recordRuntimeLog({
+      runId,
+      operation: 'jira.testConnection',
+      status: 'failed',
+      level: 'error',
+      message
+    });
     sendJson(res, 400, {
       ok: false,
       status: 'failed',
-      message: error instanceof Error ? error.message : 'Invalid Jira connection request'
+      message,
+      runId,
+      logFile: LOG_FILE_HINT
     });
   }
 }
@@ -312,12 +372,40 @@ async function handleJiraScan(req: IncomingMessage, res: ServerResponse): Promis
   try {
     const config = parseCredentialDraft(await readBody(req));
     const result = await scanJiraProject(config);
+    await recordRuntimeLog({
+      runId: result.runId,
+      operation: 'jira.scan',
+      status: result.status,
+      level: result.ok ? 'info' : 'error',
+      repoId: result.repoId,
+      projectKey: result.projectKey,
+      message: result.message,
+      durationMs: result.durationMs,
+      httpStatus: result.httpStatus,
+      metadata: {
+        endpoint: getJiraSearchPath(config.mode),
+        issueCount: result.issueCount,
+        total: result.total,
+        jql: result.jql
+      }
+    });
     sendJson(res, result.ok ? 200 : 400, result);
   } catch (error) {
+    const runId = createRunId('jira-scan');
+    const message = error instanceof Error ? error.message : 'Invalid Jira scan request';
+    await recordRuntimeLog({
+      runId,
+      operation: 'jira.scan',
+      status: 'failed',
+      level: 'error',
+      message
+    });
     sendJson(res, 400, {
       ok: false,
       status: 'failed',
-      message: error instanceof Error ? error.message : 'Invalid Jira scan request'
+      message,
+      runId,
+      logFile: LOG_FILE_HINT
     });
   }
 }
