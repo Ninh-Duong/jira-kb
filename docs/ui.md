@@ -1,19 +1,24 @@
-# UI Outline
+# UI Guide
 
-## Top-level screens
+## Open The Local UI
 
-- Repo list
-- Repo detail
-- Credential drawer
-- Sprint workflow
-- Repo workflow
-- Run log panel
+Start the local app:
 
-## Credential drawer
+```bash
+npm run dev:local
+```
 
-Small modal or drawer only.
+Open:
 
-Fields:
+```txt
+http://127.0.0.1:4173
+```
+
+## Configure Jira Credentials
+
+Use `Credentials` or `Config` to open the credential drawer.
+
+Required fields:
 
 - repo name
 - Jira base URL
@@ -21,36 +26,33 @@ Fields:
 - API token
 - project key
 
-Actions:
+Use `Test Connection` to verify the credentials against Jira.
 
-- test connection
-- save profile
-- cancel
+## Scan Jira
 
-States:
+Use `Scan Jira` in the header after entering credentials.
 
-- idle
-- testing
-- connected
-- failed
+When the scan finishes, the UI switches to `Workspace Overview` and shows:
 
-## Run log panel
+- scanned issue count
+- Jira total
+- scan duration
+- status breakdown
+- issue type breakdown
+- recent scanned issues
 
-Keep a compact log area that shows:
+## Kanban Board
 
-- step name
-- status
-- timestamp
-- note
-- error summary
+The Kanban board is local browser state. It supports:
 
-This helps DEV, BA, and QC trace scan failures and follow-up questions without opening the raw data.
+- create issue
+- drag issue between columns
+- filter by search text, assignee, priority, and issue type
+- open issue detail
+- delete issue
 
-## Workflow view
+Kanban tickets are stored in browser `localStorage` and are not populated by `Scan Jira` yet.
 
-Keep it simple:
+## Activity Logs
 
-- repo workflow: aggregate across the whole repo
-- sprint workflow: only tickets in the selected sprint
-
-Prefer a compact, readable view over a detailed graph in v1.
+Use `Activity Logs` to see UI-level events such as credential tests and scan attempts.

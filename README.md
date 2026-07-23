@@ -52,6 +52,7 @@ npm run workspace -- init --repo WeCRM-eager --display-name WeCRM-eager --base-u
 More docs:
 
 - [Local run guide](docs/local-run.md)
+- [Feature notes](docs/features.md)
 - [GitHub push checklist](docs/github-push-checklist.md)
 - [Architecture](docs/architecture.md)
 - [UI outline](docs/ui.md)
