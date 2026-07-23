@@ -4,6 +4,7 @@ import { Kanban, Key, RefreshCw, FolderGit2 } from 'lucide-react';
 interface HeaderNavProps {
   projectName: string;
   projectKey: string;
+  viewLabel: string;
   connectionState: 'idle' | 'testing' | 'connected' | 'failed';
   scanState: 'idle' | 'scanning' | 'succeeded' | 'failed';
   onOpenCredential: () => void;
@@ -13,6 +14,7 @@ interface HeaderNavProps {
 export const HeaderNav: React.FC<HeaderNavProps> = ({
   projectName,
   projectKey,
+  viewLabel,
   connectionState,
   scanState,
   onOpenCredential,
@@ -38,7 +40,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             {projectName} ({projectKey})
           </span>
           <span>/</span>
-          <span className="text-slate-800 font-semibold">Kanban Board</span>
+          <span className="text-slate-800 font-semibold">{viewLabel}</span>
         </nav>
 
         <div className="flex items-center gap-2.5">
@@ -47,7 +49,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-none">
-              {projectKey} Software Board
+              {projectKey} {viewLabel}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
               Agile development workflow & ticket synchronization

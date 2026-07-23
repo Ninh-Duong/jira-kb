@@ -9,6 +9,10 @@ export interface JiraCredentialDraft {
   accountEmail: string;
   apiToken: string;
   projectKey: string;
+  boardId?: string;
+  jqlScope?: string;
+  sprintFieldIds?: string[];
+  epicFieldIds?: string[];
   mode: JiraMode;
 }
 
@@ -17,6 +21,8 @@ export interface RepoManifest {
   displayName: string;
   jiraBaseUrl: string;
   projectKey: string;
+  boardId?: string;
+  jqlScope?: string;
   authRef: string;
   mode: JiraMode;
   createdAt: string;

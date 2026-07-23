@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { KanbanBoard } from './components/KanbanBoard';
 import { HeaderNav } from './components/HeaderNav';
-import { Activity, LayoutGrid, Kanban as KanbanIcon } from 'lucide-react';
+import { Activity, Kanban as KanbanIcon, ClipboardList } from 'lucide-react';
+import { ProjectInfoPage } from './components/ProjectInfoPage';
+import type { ColumnStatus, Priority, Ticket } from './types/kanban';
+import type { RepoSprint, RepoView, SprintStatus } from './types/project';
 
 type ConnectionState = 'idle' | 'testing' | 'connected' | 'failed';
 type ScanState = 'idle' | 'scanning' | 'succeeded' | 'failed';
-type WorkspaceView = 'board' | 'overview' | 'activity';
+type WorkspaceView = 'board' | 'project' | 'activity';
 
 interface JiraCredentialPayload {
   repoId: string;
@@ -14,14 +17,10 @@ interface JiraCredentialPayload {
   accountEmail: string;
   apiToken: string;
   projectKey: string;
+  boardId: string;
+  jqlScope: string;
+  sprintFieldIds: string[];
   mode: 'cloud' | 'server';
-}
-
-interface RepoView {
-  id: string;
-  name: string;
-  projectKey: string;
-  sprints: string[];
 }
 
 interface LogEntry {
@@ -47,8 +46,23 @@ interface JiraScanIssue {
   summary: string;
   status: string;
   issueType: string;
+  priority?: string;
+  assigneeName?: string;
+  assigneeAvatarUrl?: string;
+  sprintNames: string[];
   updatedAt: string;
+  createdAt?: string;
   url: string;
+}
+
+interface JiraScanSprint {
+  id: number;
+  name: string;
+  state: string;
+  goal?: string;
+  startDate?: string;
+  endDate?: string;
+  completeDate?: string;
 }
 
 interface JiraScanResponse {
@@ -59,25 +73,130 @@ interface JiraScanResponse {
   logFile: string;
   repoId: string;
   projectKey: string;
+  boardId?: string;
   jql: string;
   issueCount: number;
   total?: number;
   statusCounts: Record<string, number>;
   typeCounts: Record<string, number>;
   issues: JiraScanIssue[];
+  sprints: JiraScanSprint[];
+  warnings?: string[];
   durationMs: number;
   scannedAt: string;
   httpStatus?: number;
 }
 
+const TICKET_STORAGE_KEY = 'jira-kb-tickets';
+
 const repos: RepoView[] = [
   {
     id: 'wecrm-eager',
-    name: 'WeCRM-eager',
-    projectKey: 'WECRM',
-    sprints: ['Sprint 42', 'Sprint 43']
+    name: 'WeCRM-Eager',
+    projectKey: 'WCE',
+    sprints: [
+      { name: 'Sprint 41', status: 'completed', goal: 'Stabilize billing and sync flows' },
+      { name: 'Sprint 42', status: 'completed', goal: 'Finish intake cleanup and QA fixes' },
+      { name: 'Sprint 43', status: 'in-progress', goal: 'Close current delivery blockers' },
+      { name: 'Sprint 44', status: 'planned', goal: 'Hardening and release prep' }
+    ]
   }
 ];
+
+function loadStoredTickets(): Ticket[] {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const saved = window.localStorage.getItem(TICKET_STORAGE_KEY);
+    if (!saved) {
+      return [];
+    }
+
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? (parsed as Ticket[]) : [];
+  } catch (error) {
+    console.warn('Failed to load tickets from localStorage:', error);
+    return [];
+  }
+}
+
+function mapJiraStatusToColumn(status: string): ColumnStatus {
+  const normalized = status.trim().toLowerCase();
+
+  if (normalized.includes('done') || normalized.includes('closed') || normalized.includes('resolved')) {
+    return 'Done';
+  }
+
+  if (normalized.includes('in progress') || normalized.includes('development')) {
+    return 'In Progress';
+  }
+
+  if (normalized.includes('review') || normalized.includes('testing') || normalized.includes('uat') || normalized.includes('ready')) {
+    return 'Review / QA';
+  }
+
+  if (normalized.includes('selected')) {
+    return 'Selected for Development';
+  }
+
+  return 'Backlog';
+}
+
+function normalizePriority(priority: string | undefined): Priority {
+  switch (priority) {
+    case 'Highest':
+    case 'High':
+    case 'Medium':
+    case 'Low':
+    case 'Lowest':
+      return priority;
+    default:
+      return 'Medium';
+  }
+}
+
+function mapSprintState(state: string): SprintStatus {
+  switch (state.toLowerCase()) {
+    case 'closed':
+      return 'completed';
+    case 'active':
+      return 'in-progress';
+    default:
+      return 'planned';
+  }
+}
+
+function mapScanSprints(sprints: JiraScanSprint[]): RepoSprint[] {
+  return sprints.map((sprint) => ({
+    name: sprint.name,
+    status: mapSprintState(sprint.state),
+    goal: sprint.goal
+  }));
+}
+
+function mapScanIssuesToTickets(issues: JiraScanIssue[]): Ticket[] {
+  return issues.map((issue) => ({
+    id: issue.key,
+    key: issue.key,
+    summary: issue.summary,
+    type: issue.issueType,
+    priority: normalizePriority(issue.priority),
+    status: mapJiraStatusToColumn(issue.status),
+    jiraStatus: issue.status,
+    assignee: issue.assigneeName
+      ? {
+          id: issue.assigneeName,
+          name: issue.assigneeName,
+          avatarUrl: issue.assigneeAvatarUrl ?? ''
+        }
+      : null,
+    sprintName: issue.sprintNames[0],
+    createdAt: issue.createdAt ? issue.createdAt.split('T')[0] : issue.updatedAt.split('T')[0],
+    description: issue.url
+  }));
+}
 
 const initialLogs: LogEntry[] = [
   {
@@ -90,6 +209,10 @@ const initialLogs: LogEntry[] = [
   }
 ];
 
+function ConfigHint({ children }: { children: string }) {
+  return <p className="mt-1 text-[11px] leading-snug text-slate-500">{children}</p>;
+}
+
 export default function App() {
   const [selectedRepoId] = useState(repos[0].id);
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('board');
@@ -100,26 +223,40 @@ export default function App() {
   const [scanMessage, setScanMessage] = useState('No Jira scan has run yet.');
   const [scanResult, setScanResult] = useState<JiraScanResponse | null>(null);
   const [logs, setLogs] = useState(initialLogs);
-  const [liveTicketCount, setLiveTicketCount] = useState(0);
+  const [tickets, setTickets] = useState<Ticket[]>(loadStoredTickets);
   const [credentialForm, setCredentialForm] = useState({
-    displayName: 'WeCRM-eager',
-    baseUrl: 'https://wecrm.atlassian.net',
+    displayName: 'WeCRM-Eager',
+    baseUrl: 'https://siliconstack.atlassian.net',
     accountEmail: 'ninh.duong@wecrm.io',
     apiToken: '',
-    projectKey: 'WECRM'
+    projectKey: 'WCE',
+    boardId: '',
+    jqlScope: 'project = WCE',
+    sprintFieldIds: 'customfield_10020'
   });
 
   const repo = useMemo(
     () => repos.find((item) => item.id === selectedRepoId) ?? repos[0],
     [selectedRepoId]
   );
-  const recentScanIssues = scanResult?.issues.slice(0, 8) ?? [];
-  const scanStatusColorMap = {
-    idle: 'bg-slate-100 text-slate-600 border-slate-200',
-    scanning: 'bg-amber-50 text-amber-700 border-amber-200',
-    succeeded: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    failed: 'bg-red-50 text-red-700 border-red-200'
+  const scannedSprints = scanResult?.sprints ? mapScanSprints(scanResult.sprints) : [];
+  const activeRepo: RepoView = {
+    ...repo,
+    name: credentialForm.displayName.trim() || repo.name,
+    projectKey: credentialForm.projectKey.trim() || repo.projectKey,
+    sprints: scannedSprints.length > 0 ? scannedSprints : repo.sprints
   };
+  const viewLabel = workspaceView === 'board' ? 'Kanban Board' : workspaceView === 'project' ? 'Project Info' : 'Activity Logs';
+  const defaultSprintName = activeRepo.sprints.find((sprint) => sprint.status === 'in-progress')?.name ?? activeRepo.sprints[0]?.name ?? '';
+  const sprintOptions = activeRepo.sprints.map((sprint) => sprint.name);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(TICKET_STORAGE_KEY, JSON.stringify(tickets));
+    } catch (error) {
+      console.warn('Failed to save tickets to localStorage:', error);
+    }
+  }, [tickets]);
 
   function appendLog(entry: Omit<LogEntry, 'id' | 'time'>) {
     const nextEntry: LogEntry = {
@@ -149,6 +286,12 @@ export default function App() {
       accountEmail: credentialForm.accountEmail.trim(),
       apiToken: credentialForm.apiToken.trim(),
       projectKey: credentialForm.projectKey.trim(),
+      boardId: credentialForm.boardId.trim(),
+      jqlScope: credentialForm.jqlScope.trim(),
+      sprintFieldIds: credentialForm.sprintFieldIds
+        .split(',')
+        .map((fieldId) => fieldId.trim())
+        .filter(Boolean),
       mode: 'cloud'
     };
   }
@@ -274,7 +417,7 @@ export default function App() {
     setScanState('scanning');
     setScanMessage(`Scanning Jira project ${credentials.projectKey}...`);
     setScanResult(null);
-    setWorkspaceView('overview');
+    setWorkspaceView('project');
     appendLog({
       step: 'scan',
       level: 'info',
@@ -310,12 +453,13 @@ export default function App() {
 
       setScanState('succeeded');
       setScanResult(result);
+      setTickets(mapScanIssuesToTickets(result.issues));
       setScanMessage(result.message);
       appendLog({
         step: 'scan',
         level: 'info',
         message: 'Jira scan completed',
-        note: `${result.issueCount} issues scanned in ${result.durationMs}ms`
+        note: `${result.issueCount} issues scanned in ${result.durationMs}ms${result.warnings?.length ? ` | ${result.warnings.join('; ')}` : ''}`
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to reach local Jira scan endpoint.';
@@ -374,12 +518,12 @@ export default function App() {
                 <span>Active Project</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               </div>
-              <p className="font-bold text-sm text-white">{repo.name}</p>
+              <p className="font-bold text-sm text-white">{activeRepo.name}</p>
               <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-slate-700/60">
                 <span className="font-mono bg-slate-900 px-1.5 py-0.5 rounded text-[10px] text-blue-400">
-                  {repo.projectKey}
+                  {activeRepo.projectKey}
                 </span>
-                <span>{liveTicketCount} issues</span>
+                <span>{tickets.length} issues</span>
               </div>
             </div>
           </div>
@@ -403,15 +547,15 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setWorkspaceView('overview')}
+              onClick={() => setWorkspaceView('project')}
               className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-md transition-colors ${
-                workspaceView === 'overview'
+                workspaceView === 'project'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >
-              <LayoutGrid className="w-4 h-4" />
-              <span>Workspace Overview</span>
+              <ClipboardList className="w-4 h-4" />
+              <span>Project Info</span>
             </button>
 
             <button
@@ -437,8 +581,9 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
         <HeaderNav
-          projectName={repo.name}
-          projectKey={repo.projectKey}
+          projectName={activeRepo.name}
+          projectKey={activeRepo.projectKey}
+          viewLabel={viewLabel}
           connectionState={connectionState}
           scanState={scanState}
           onOpenCredential={() => setDrawerOpen(true)}
@@ -447,134 +592,17 @@ export default function App() {
 
         {/* View Switch Content */}
         {workspaceView === 'board' && (
-          <KanbanBoard onTicketCountChange={setLiveTicketCount} />
+          <KanbanBoard
+            tickets={tickets}
+            onTicketsChange={setTickets}
+            projectKey={activeRepo.projectKey}
+            sprintOptions={sprintOptions}
+            defaultSprintName={defaultSprintName}
+          />
         )}
 
-        {workspaceView === 'overview' && (
-          <div className="p-6 overflow-y-auto space-y-6">
-            <div className="bg-slate-50 border border-slate-200 p-6 rounded-lg">
-              <h2 className="text-lg font-bold text-slate-900 mb-2">Workspace Overview</h2>
-              <p className="text-xs text-slate-600 mb-4">
-                Current metrics for project {repo.projectKey} ({repo.name}).
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-4 bg-white border border-slate-200 rounded-md">
-                  <span className="text-xs text-slate-500 uppercase font-bold">Board Issues</span>
-                  <p className="text-2xl font-extrabold text-blue-600 mt-1">{liveTicketCount}</p>
-                </div>
-                <div className="p-4 bg-white border border-slate-200 rounded-md">
-                  <span className="text-xs text-slate-500 uppercase font-bold">Project Key</span>
-                  <p className="text-2xl font-extrabold text-emerald-600 mt-1">{repo.projectKey}</p>
-                </div>
-                <div className="p-4 bg-white border border-slate-200 rounded-md">
-                  <span className="text-xs text-slate-500 uppercase font-bold">Last Jira Scan</span>
-                  <p className="text-sm font-bold text-slate-800 mt-2">
-                    {scanResult ? new Date(scanResult.scannedAt).toLocaleString() : 'Not scanned yet'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 p-6 rounded-lg">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Jira Scan</h3>
-                  <p className="text-xs text-slate-500 mt-1">{scanMessage}</p>
-                </div>
-                <span
-                  className={`inline-flex w-fit items-center px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider ${scanStatusColorMap[scanState]}`}
-                >
-                  {scanState}
-                </span>
-              </div>
-
-              {scanResult ? (
-                <div className="space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="border-l-2 border-blue-500 pl-3">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Scanned</span>
-                      <p className="text-2xl font-extrabold text-slate-900">{scanResult.issueCount}</p>
-                    </div>
-                    <div className="border-l-2 border-emerald-500 pl-3">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Jira Total</span>
-                      <p className="text-2xl font-extrabold text-slate-900">
-                        {scanResult.total ?? scanResult.issueCount}
-                      </p>
-                    </div>
-                    <div className="border-l-2 border-amber-500 pl-3">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Duration</span>
-                      <p className="text-2xl font-extrabold text-slate-900">{scanResult.durationMs}ms</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">Status Breakdown</h4>
-                      <div className="space-y-2">
-                        {Object.entries(scanResult.statusCounts).length > 0 ? (
-                          Object.entries(scanResult.statusCounts).map(([status, count]) => (
-                            <div key={status} className="flex items-center justify-between text-xs">
-                              <span className="text-slate-600">{status}</span>
-                              <span className="font-bold text-slate-900">{count}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-xs text-slate-400">No statuses returned.</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">Issue Types</h4>
-                      <div className="space-y-2">
-                        {Object.entries(scanResult.typeCounts).length > 0 ? (
-                          Object.entries(scanResult.typeCounts).map(([type, count]) => (
-                            <div key={type} className="flex items-center justify-between text-xs">
-                              <span className="text-slate-600">{type}</span>
-                              <span className="font-bold text-slate-900">{count}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-xs text-slate-400">No issue types returned.</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">Recent Issues</h4>
-                    <div className="divide-y divide-slate-100 border border-slate-200 rounded-md overflow-hidden">
-                      {recentScanIssues.length > 0 ? (
-                        recentScanIssues.map((issue) => (
-                          <a
-                            key={issue.key}
-                            href={issue.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2 text-xs hover:bg-slate-50"
-                          >
-                            <span className="min-w-0">
-                              <span className="font-bold text-blue-700 mr-2">{issue.key}</span>
-                              <span className="text-slate-700">{issue.summary}</span>
-                            </span>
-                            <span className="shrink-0 text-slate-500">
-                              {issue.status} - {issue.updatedAt ? new Date(issue.updatedAt).toLocaleDateString() : 'Unknown'}
-                            </span>
-                          </a>
-                        ))
-                      ) : (
-                        <p className="px-3 py-2 text-xs text-slate-400">No issues returned.</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="border border-dashed border-slate-300 rounded-md px-4 py-5 text-xs text-slate-500">
-                  No scan result yet.
-                </div>
-              )}
-            </div>
-          </div>
+        {workspaceView === 'project' && (
+          <ProjectInfoPage repo={activeRepo} tickets={tickets} scanResult={scanResult} />
         )}
 
         {workspaceView === 'activity' && (
@@ -623,6 +651,7 @@ export default function App() {
                     onChange={(e) => updateCredentialField('displayName', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md"
                   />
+                  <ConfigHint>Use the Jira space/project display name you want this local repo profile to represent.</ConfigHint>
                 </div>
 
                 <div>
@@ -633,6 +662,7 @@ export default function App() {
                     onChange={(e) => updateCredentialField('baseUrl', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md"
                   />
+                  <ConfigHint>Copy only the Jira site origin from your browser, for example https://siliconstack.atlassian.net.</ConfigHint>
                 </div>
 
                 <div>
@@ -643,6 +673,7 @@ export default function App() {
                     onChange={(e) => updateCredentialField('accountEmail', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md"
                   />
+                  <ConfigHint>Use the email account that can open the Jira project and board in Atlassian.</ConfigHint>
                 </div>
 
                 <div>
@@ -653,6 +684,7 @@ export default function App() {
                     onChange={(e) => updateCredentialField('apiToken', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md"
                   />
+                  <ConfigHint>Create this from Atlassian account settings under Security, then API tokens.</ConfigHint>
                 </div>
 
                 <div>
@@ -663,6 +695,43 @@ export default function App() {
                     onChange={(e) => updateCredentialField('projectKey', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md"
                   />
+                  <ConfigHint>Open the project in Jira and copy the key from the URL or issue keys, for example WCE from WCE-877.</ConfigHint>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Board ID</label>
+                  <input
+                    type="text"
+                    value={credentialForm.boardId}
+                    onChange={(e) => updateCredentialField('boardId', e.target.value)}
+                    placeholder="e.g. 123"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md"
+                  />
+                  <ConfigHint>Open the exact Jira board and copy the number after /boards/ in the board URL; leave blank to scan issues without board sprint lookup.</ConfigHint>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">JQL Scope</label>
+                  <textarea
+                    rows={3}
+                    value={credentialForm.jqlScope}
+                    onChange={(e) => updateCredentialField('jqlScope', e.target.value)}
+                    placeholder='project = WCE AND component = "Eager"'
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md resize-none"
+                  />
+                  <ConfigHint>Use Jira Advanced issue search, filter the exact repo scope, then copy the JQL such as project = WCE AND component = "Eager".</ConfigHint>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Sprint Field IDs</label>
+                  <input
+                    type="text"
+                    value={credentialForm.sprintFieldIds}
+                    onChange={(e) => updateCredentialField('sprintFieldIds', e.target.value)}
+                    placeholder="customfield_10020"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md"
+                  />
+                  <ConfigHint>Usually customfield_10020 on Jira Cloud; add comma-separated field IDs if your Jira uses another Sprint custom field.</ConfigHint>
                 </div>
               </div>
             </div>

@@ -25,6 +25,12 @@ Required fields:
 - account email
 - API token
 - project key
+- JQL scope
+
+Optional but recommended:
+
+- board ID
+- sprint field IDs, for example `customfield_10020`
 
 Use `Test Connection` to verify the credentials against Jira.
 
@@ -32,14 +38,17 @@ Use `Test Connection` to verify the credentials against Jira.
 
 Use `Scan Jira` in the header after entering credentials.
 
-When the scan finishes, the UI switches to `Workspace Overview` and shows:
+When the scan finishes, the UI switches to `Project Info` and shows:
 
-- scanned issue count
-- Jira total
-- scan duration
-- status breakdown
-- issue type breakdown
-- recent scanned issues
+- sprint inventory for the repo
+- completed and in-progress sprint status
+- tickets grouped by sprint
+- tickets without sprint
+- latest scan JQL and run ID
+
+## Project Info
+
+Use `Project Info` in the sidebar to review sprint history and the tickets attached to each sprint.
 
 ## Kanban Board
 
@@ -50,8 +59,9 @@ The Kanban board is local browser state. It supports:
 - filter by search text, assignee, priority, and issue type
 - open issue detail
 - delete issue
+- assign an issue to a sprint
 
-Kanban tickets are stored in browser `localStorage` and are not populated by `Scan Jira` yet.
+Kanban tickets are stored in browser `localStorage`. Project Info reads the same local ticket set.
 
 ## Activity Logs
 

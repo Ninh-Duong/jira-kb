@@ -10,6 +10,7 @@ Current implemented pieces:
 - test Jira credentials through the local Vite API
 - scan recent Jira issues for a project through the local Vite API
 - write runtime API logs to `logs/system.jsonl`
+- review project sprints and sprint tickets in a dedicated Project Info page
 - extract Jira issue snapshots into lightweight records
 - normalize issue snapshots into markdown, search text, and simple impact notes
 - search normalized tickets with a lightweight scorer
@@ -18,16 +19,17 @@ Current implemented pieces:
 
 ## Jira Scan
 
-The `Scan Jira` action is a read-only scan. It calls `/api/jira/scan`, fetches up to 25 recently updated Jira issues for the configured project through Jira Cloud enhanced search, and returns:
+The `Scan Jira` action is a read-only scan. It calls `/api/jira/scan`, uses the configured `jqlScope`, fetches Jira issues through Jira Cloud enhanced search with pagination, and returns:
 
 - scanned issue count
 - Jira total from the search response
 - status breakdown
 - issue type breakdown
 - recent issue keys, summaries, statuses, update dates, and Jira links
+- board sprints when `boardId` is configured
 - scan duration and timestamp
 
-The scan does not persist Jira issues to `workspaces/` yet. It also does not rebuild KB files or update the Kanban board.
+The scan loads Jira issues into the local UI state so Project Info and the Kanban board reflect the latest scan. It does not persist raw Jira payloads to `workspaces/` yet and does not rebuild KB files.
 
 ## Planned Full Sync
 

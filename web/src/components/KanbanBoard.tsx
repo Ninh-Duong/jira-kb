@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ColumnStatus, IssueType, Priority, Ticket } from '../types/kanban';
 import { defaultColumns, mockAssignees } from '../mock/jiraData';
 import { Column } from './Column';
@@ -6,26 +6,21 @@ import { ControlBar } from './ControlBar';
 import { CreateIssueModal } from './CreateIssueModal';
 import { TicketDetailModal } from './TicketDetailModal';
 
-const STORAGE_KEY = 'jira-kb-tickets';
-
 interface KanbanBoardProps {
-  onTicketCountChange?: (count: number) => void;
+  tickets: Ticket[];
+  onTicketsChange: (tickets: Ticket[]) => void;
+  projectKey: string;
+  sprintOptions: string[];
+  defaultSprintName?: string;
 }
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onTicketCountChange }) => {
-  // Initialize state from localStorage
-  const [tickets, setTickets] = useState<Ticket[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.warn('Failed to load tickets from localStorage:', e);
-    }
-    return [];
-  });
-
+export const KanbanBoard: React.FC<KanbanBoardProps> = ({
+  tickets,
+  onTicketsChange,
+  projectKey,
+  sprintOptions,
+  defaultSprintName
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<Priority | 'All'>('All');
@@ -35,23 +30,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onTicketCountChange })
   const [createDefaultStatus, setCreateDefaultStatus] = useState<ColumnStatus>('Backlog');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
 
-  // Persist tickets to localStorage on change
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-    } catch (e) {
-      console.warn('Failed to save tickets to localStorage:', e);
-    }
-
-    if (onTicketCountChange) {
-      onTicketCountChange(tickets.length);
-    }
-  }, [tickets, onTicketCountChange]);
-
   // Handle Drag & Drop move
   const handleDropTicket = (ticketId: string, targetStatus: ColumnStatus) => {
-    setTickets((prev) =>
-      prev.map((ticket) =>
+    onTicketsChange(
+      tickets.map((ticket) =>
         ticket.id === ticketId ? { ...ticket, status: targetStatus } : ticket
       )
     );
@@ -63,15 +45,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onTicketCountChange })
     const newTicket: Ticket = {
       ...newTicketData,
       id: `t-${Date.now()}`,
-      key: `WECRM-${nextNumber}`,
+      key: `${projectKey}-${nextNumber}`,
       createdAt: new Date().toISOString().split('T')[0]
     };
-    setTickets((prev) => [newTicket, ...prev]);
+    onTicketsChange([newTicket, ...tickets]);
   };
 
   // Delete issue handler
   const handleDeleteTicket = (ticketId: string) => {
-    setTickets((prev) => prev.filter((t) => t.id !== ticketId));
+    onTicketsChange(tickets.filter((ticket) => ticket.id !== ticketId));
   };
 
   // Clear filters
@@ -166,6 +148,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ onTicketCountChange })
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateTicket}
         assignees={mockAssignees}
+        sprintOptions={sprintOptions}
+        defaultSprintName={defaultSprintName}
         defaultStatus={createDefaultStatus}
       />
 

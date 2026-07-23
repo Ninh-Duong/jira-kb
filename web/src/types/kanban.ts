@@ -1,6 +1,6 @@
 export type Priority = 'Highest' | 'High' | 'Medium' | 'Low' | 'Lowest';
-export type IssueType = 'Story' | 'Task' | 'Bug' | 'Epic';
-export type ColumnStatus = 'Backlog' | 'Selected for Development' | 'In Progress' | 'Review / QA' | 'Done';
+export type IssueType = 'Story' | 'Task' | 'Bug' | 'Epic' | (string & {});
+export type ColumnStatus = 'Backlog' | 'Selected for Development' | 'In Progress' | 'Review / QA' | 'Done' | (string & {});
 
 export interface Assignee {
   id: string;
@@ -16,7 +16,9 @@ export interface Ticket {
   type: IssueType;
   priority: Priority;
   status: ColumnStatus;
+  jiraStatus?: string;
   assignee: Assignee | null;
+  sprintName?: string;
   reporter?: Assignee;
   storyPoints?: number;
   description?: string;

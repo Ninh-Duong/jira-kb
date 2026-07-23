@@ -46,6 +46,12 @@ export const renderIssueTypeIcon = (type: IssueType) => {
           <Zap className="w-3.5 h-3.5 fill-current" />
         </span>
       );
+    default:
+      return (
+        <span title={type} className="flex items-center justify-center w-5 h-5 bg-slate-500 text-white rounded-[3px]">
+          <CheckSquare className="w-3.5 h-3.5" />
+        </span>
+      );
   }
 };
 
@@ -111,6 +117,14 @@ export const TicketCard: React.FC<TicketCardProps> = ({
         {ticket.summary}
       </p>
 
+      {ticket.sprintName && (
+        <div className="mb-2">
+          <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded-full bg-slate-50 text-slate-600 border-slate-200">
+            {ticket.sprintName}
+          </span>
+        </div>
+      )}
+
       {/* Bottom Bar */}
       <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100/80">
         <div className="flex items-center gap-1.5">
@@ -130,13 +144,20 @@ export const TicketCard: React.FC<TicketCardProps> = ({
           {renderPriorityIcon(ticket.priority)}
 
           {/* Assignee Avatar */}
-          {ticket.assignee ? (
+          {ticket.assignee && ticket.assignee.avatarUrl ? (
             <img
               src={ticket.assignee.avatarUrl}
               alt={ticket.assignee.name}
               title={`Assignee: ${ticket.assignee.name}`}
               className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200"
             />
+          ) : ticket.assignee ? (
+            <div
+              title={`Assignee: ${ticket.assignee.name}`}
+              className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center text-[9px] font-bold ring-1 ring-slate-200"
+            >
+              {ticket.assignee.name.slice(0, 1).toUpperCase()}
+            </div>
           ) : (
             <div
               title="Unassigned"

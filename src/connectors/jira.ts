@@ -32,7 +32,8 @@ export function buildJiraSearchUrl(
   jql: string,
   fields = DEFAULT_FIELDS,
   startAt = 0,
-  maxResults = 50
+  maxResults = 50,
+  nextPageToken?: string
 ): string {
   const baseUrl = normalizeBaseUrl(config.jiraBaseUrl);
   const url = new URL(`${baseUrl}${getJiraSearchPath(config.mode)}`);
@@ -42,8 +43,24 @@ export function buildJiraSearchUrl(
 
   if (config.mode === 'server') {
     url.searchParams.set('startAt', String(startAt));
+  } else if (nextPageToken) {
+    url.searchParams.set('nextPageToken', nextPageToken);
   }
 
+  return url.toString();
+}
+
+export function buildJiraBoardSprintsUrl(
+  config: Pick<JiraCredentialDraft, 'jiraBaseUrl'>,
+  boardId: string,
+  startAt = 0,
+  maxResults = 50
+): string {
+  const baseUrl = normalizeBaseUrl(config.jiraBaseUrl);
+  const url = new URL(`${baseUrl}/rest/agile/1.0/board/${encodeURIComponent(boardId)}/sprint`);
+  url.searchParams.set('state', 'active,future,closed');
+  url.searchParams.set('startAt', String(startAt));
+  url.searchParams.set('maxResults', String(maxResults));
   return url.toString();
 }
 

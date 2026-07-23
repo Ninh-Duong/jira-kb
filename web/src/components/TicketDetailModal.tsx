@@ -25,7 +25,7 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
             {renderIssueTypeIcon(ticket.type)}
             <span className="font-bold text-sm text-slate-700">{ticket.key}</span>
             <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-200 text-slate-700">
-              {ticket.status}
+              {ticket.jiraStatus ?? ticket.status}
             </span>
           </div>
 
@@ -74,13 +74,20 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
             <div>
               <span className="block text-[11px] font-bold text-slate-400 uppercase mb-1">Assignee</span>
               <div className="flex items-center gap-2">
-                {ticket.assignee ? (
+                {ticket.assignee && ticket.assignee.avatarUrl ? (
                   <>
                     <img
                       src={ticket.assignee.avatarUrl}
                       alt={ticket.assignee.name}
                       className="w-6 h-6 rounded-full object-cover"
                     />
+                    <span className="font-semibold text-slate-800">{ticket.assignee.name}</span>
+                  </>
+                ) : ticket.assignee ? (
+                  <>
+                    <span className="w-6 h-6 rounded-full bg-slate-700 text-white flex items-center justify-center text-[10px] font-bold">
+                      {ticket.assignee.name.slice(0, 1).toUpperCase()}
+                    </span>
                     <span className="font-semibold text-slate-800">{ticket.assignee.name}</span>
                   </>
                 ) : (
@@ -94,6 +101,13 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
               <div className="flex items-center gap-1.5 font-semibold text-slate-700">
                 {renderPriorityIcon(ticket.priority)}
                 <span>{ticket.priority}</span>
+              </div>
+            </div>
+
+            <div>
+              <span className="block text-[11px] font-bold text-slate-400 uppercase mb-1">Sprint</span>
+              <div className="font-semibold text-slate-700">
+                {ticket.sprintName || 'No sprint'}
               </div>
             </div>
 

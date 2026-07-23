@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Assignee, ColumnStatus, IssueType, Priority, Ticket } from '../types/kanban';
 import { X, Plus } from 'lucide-react';
 
@@ -7,6 +7,8 @@ interface CreateIssueModalProps {
   onClose: () => void;
   onSubmit: (newTicket: Omit<Ticket, 'id' | 'key' | 'createdAt'>) => void;
   assignees: Assignee[];
+  sprintOptions: string[];
+  defaultSprintName?: string;
   defaultStatus?: ColumnStatus;
 }
 
@@ -15,6 +17,8 @@ export const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   onClose,
   onSubmit,
   assignees,
+  sprintOptions,
+  defaultSprintName,
   defaultStatus = 'Backlog'
 }) => {
   const [summary, setSummary] = useState('');
@@ -24,6 +28,22 @@ export const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const [assigneeId, setAssigneeId] = useState<string>('');
   const [storyPoints, setStoryPoints] = useState<number>(3);
   const [description, setDescription] = useState('');
+  const [sprintName, setSprintName] = useState<string>(defaultSprintName ?? sprintOptions[0] ?? '');
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setSummary('');
+    setType('Story');
+    setPriority('Medium');
+    setStatus(defaultStatus);
+    setAssigneeId('');
+    setStoryPoints(3);
+    setDescription('');
+    setSprintName(defaultSprintName ?? sprintOptions[0] ?? '');
+  }, [defaultSprintName, defaultStatus, isOpen, sprintOptions]);
 
   if (!isOpen) return null;
 
@@ -39,6 +59,7 @@ export const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       priority,
       status,
       assignee: selectedAssignee,
+      sprintName: sprintName || undefined,
       storyPoints,
       description: description.trim()
     });
@@ -155,6 +176,24 @@ export const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                 ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Sprint
+            </label>
+            <select
+              value={sprintName}
+              onChange={(e) => setSprintName(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">No sprint</option>
+              {sprintOptions.map((sprint) => (
+                <option key={sprint} value={sprint}>
+                  {sprint}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Story Points */}
